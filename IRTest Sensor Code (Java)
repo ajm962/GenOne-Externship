@@ -1,0 +1,29 @@
+const int pinIRd = 8;
+const int pinIRa = A0;
+const int pinLED = 9;
+int IRvalueA = 0;
+int IRvalueD = 0;
+
+
+void setup()
+{
+  Serial.begin(9600);
+  pinMode(pinIRd, INPUT);
+  pinMode(pinIRa, INPUT);
+  pinMode(pinLED, OUTPUT);
+}
+
+void loop()
+{
+  IRvalueA = analogRead(pinIRa); 
+  if (IRvalueA >= 600)
+    IRvalueD = 1;
+  else
+    IRvalueD = 0;
+
+  Serial.print("Analog Readings");
+  Serial.println(IRvalueA);
+  Serial.print("                 Digital Readings");
+  Serial.println(IRvalueD);
+  delay(500);
+}
