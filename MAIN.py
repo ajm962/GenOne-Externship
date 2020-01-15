@@ -13,14 +13,7 @@ from imutils.video import FPS
 from imutils import paths
 from prettytable import PrettyTable
 from PIL import Image 
-import RPI.GPIO as GPIO
-
-#GPIO.setmode(GPIO.BOARD)
-#GPIO.setup(16, GPIO.IN)
-#GPIO.setup(12, GPIO.IN)
-#camera = PiCamera()
-#rawCapture = PiRGBArray(camera)
-#time.sleep(0.1)
+import RPi.GPIO as GPIO
 
 
 ### Baseline functions which create list of employees & preliminary log based on status of office
@@ -234,7 +227,7 @@ def office_camera():
 
 ### Throughout day, log updates; at end of day, functions detect last employee leaving and final lock
 def build_table():
-  entry_log = updating_log()
+  entry_log = log_main()
   log_keys = list(entry_log.keys())
   log_vals = list(entry_log.values())
 
@@ -257,16 +250,27 @@ def lights():
     return False
 
 
-#########################
-# turn on RPI
-# start server
-# initialize main code?
-#########################
 
+
+"""
+MAIN CODE! RUNNING FUNCTIONS!
+"""
+
+# turn on RPI, start server
+GPIO.setwarnings(False)
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(16, GPIO.IN)
+GPIO.setup(12, GPIO.IN)
+
+
+# initialize main code
 faces_train()
 cam_initialize()
 log_main = default_log()
+build_table()
 
+
+# run functions
 while(True):
 
   # check door state
@@ -284,6 +288,7 @@ while(True):
       if not lock_state():
         unlock()
     log_main[name] = "in office"
+    build_table()
 
   # check entry log
   if log_main != default_log():
@@ -291,8 +296,10 @@ while(True):
       time.sleep(30)
       lock()
       log_main = default_log()
+      build_table()
     if not lights(): # lights on
       if office_camera() != None: # detects face
         if office_camera()[1]:
           unlock()
           log_main[office_camera()[0]] = "out of office"
+          build_table()
