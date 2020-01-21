@@ -7,10 +7,9 @@ import tkinter as tk
 import time
 import pickle 
 import matplotlib.pyplot as plt
-import l293d.driver as l293d
+import wiringpi
+from datetime import datetime
 from imutils.video import VideoStream
-from imutils.video import FPS
-from imutils import paths
 from prettytable import PrettyTable
 from PIL import Image 
 import RPi.GPIO as GPIO
@@ -22,7 +21,7 @@ def image_path():
   returns path to folder of images
   """
   BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # os.path.dirname returns directory name of path to file
-  image_dir = os.path.join(BASE_DIR, "images") # path to folder inside GenOne called "images"
+  image_dir = os.path.join(BASE_DIR, "dataset") # path to folder inside GenOne called "images"
   return image_dir
 
 def get_employees():
@@ -37,17 +36,7 @@ def get_employees():
         name = os.path.basename(dirpath).replace(" ", "_").lower() # gives back folder name
         if name not in label_ids:
           label_ids.append(name)
-
   return label_ids 
-
-def id_dict():
-  current_id = 0
-  label_ids = {}
-  names = get_employees()
-  for name in names:
-    label_ids[name] = current_id
-    current_id += 1
-  return label_ids
   
 def default_log():
   """
@@ -72,8 +61,10 @@ def lock_state():
   """
   if GPIO.input(16) == 1:
     return True
-  else:
+  if GPIO.input(25) == 1:
     return False
+  else:
+    return "stuck"
   GPIO.cleanup()
 
 def door_state():
@@ -88,23 +79,23 @@ def door_state():
     return False
   GPIO.cleanup()
 
-def unlock():
+def unlock(): ## FIGURE OUT WHICH INPUT
   """
   Given info from lock_state(), controls servomotor and unlock deadbolt
   """
-  motor = l293d.motor(0,0,0) # input pins the motor uses
-  for i in range(0,90): # change 150 to fit needs
-    motor.counterclockwise()
-  l293d.cleanup()
+  for pulse in range(667, 1000, 1):
+    wiringpi.pwmWrite(18, pulse)
+    time.sleep(delay_period)
+  GPIO.cleanup()
 
-def lock():
+def lock(): ## FIGURE OUT WHICH INPUT
   """
   Given info from lock_state(), controls servomotor and lock deadbolt
   """
-  motor = l293d.motor(0,0,0) # input pins the motor uses
-  for i in range(0,90): # change 150 to fit needs
-    motor.clockwise()
-  l293d.cleanup()
+  for pulse in range(1000, 667, -1):
+    wiringpi.pwmWrite(18, pulse)
+    time.sleep(delay_period)  
+  GPIO.cleanup()
 
 
 ### Facial detection foundational controls
@@ -114,7 +105,7 @@ def faces_train():
   Using faces function, looks at detected faces and tries to recognize/classify them
   returns boolean regarding if face is recognized
   """
-  args = {'dataset': '/Users/anna/Desktop/deep-learning/dataset', 'encodings': '/Users/anna/Desktop/deep-learning/encodings.pickle', 'detection_method': 'cnn'}
+  args = {'dataset': '/Users/anna/Desktop/GenOne/dataset', 'encodings': '/Users/anna/Desktop/GenOne/encodings.pickle', 'detection_method': 'cnn'}
 
   # grab the paths to the input images in our dataset
   print("[INFO] quantifying faces...")
@@ -143,106 +134,117 @@ def faces_train():
   f.write(pickle.dumps(data))
   f.close()
 
-### Camera state controls
-def cam_initialize():
-  vs = VideoStream(usePiCamera=True).start()
-  time.sleep(2.0)
 
+### Camera state controls
 def hall_camera():
   """
   Takes in video footage from hallway cam and uses facial detection to distinguish people
   """
-  args = {'cascade': '/Users/anna/Desktop/deep-learning/haarcascade_frontalface_default.xml', 'encodings': '/Users/anna/Desktop/deep-learning/encodings.pickle'}
+  args = {'cascade': '/Users/anna/Desktop/GenOne/haarcascade_frontalface_default.xml', 'encodings': '/Users/anna/Desktop/GenOne/encodings.pickle'}
 
   # load the known faces & embeddings along with OpenCV's Haarcascade for face detection
   data = pickle.loads(open(args["encodings"], "rb").read())
   detector = cv2.CascadeClassifier(args["cascade"])
 
-  while True:
-    frame = VideoStream(usePiCamera=True).read()
-    roi_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    roi_color = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    faces = detector.detectMultiScale(roi_gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30), flags=cv2.CASCADE_SCALE_IMAGE)
+  frame = VideoStream(usePiCamera=True).read()
+  frame = imutils.resize(frame, width=500)
+  roi_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+  roi_color = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+  faces = detector.detectMultiScale(roi_gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30), flags=cv2.CASCADE_SCALE_IMAGE)
 
-    # box coordinates in (x, y, w, h), need (top, right, bottom, left) order --> reorder
-    boxes = [(y, x + w, y + h, x) for (x, y, w, h) in faces]
-    encodings = face_recognition.face_encodings(roi_color, boxes) 	# compute  facial embeddings for each face bounding box
+  # box coordinates in (x, y, w, h), need (top, right, bottom, left) order --> reorder
+  boxes = [(y, x + w, y + h, x) for (x, y, w, h) in faces]
+  encodings = face_recognition.face_encodings(roi_color, boxes) 	# compute  facial embeddings for each face bounding box
 
-    for face in encodings:
-      matches = face_recognition.compare_faces(data["encodings"], face) # attempt to match each face in the input image to encodings
-      name = "Unknown"
-      if True in matches:
-        matchedIdxs = [i for (i, b) in enumerate(matches) if b]
-        counts = {}
-        for i in matchedIdxs:
-          name = data["names"][i]
-          counts[name] = counts.get(name, 0) + 1
-        name = max(counts, key=counts.get) # determine recognized face w/ most votes
+  name = "Unknown"
+  for face in encodings:
+    matches = face_recognition.compare_faces(data["encodings"], face) # attempt to match each face in the input image to encodings
+    if True in matches:
+      matchedIdxs = [i for (i, b) in enumerate(matches) if b]
+      counts = {}
+      for i in matchedIdxs:
+        name = data["names"][i]
+        counts[name] = counts.get(name, 0) + 1
+      name = max(counts, key=counts.get) # determine recognized face w/ most votes
 
-    if name != "Unknown":
-      return name
+  if name != "Unknown":
+    return name
+  else:
+    return None
 
 def office_camera():
   """
   Takes in video footage from inside camera and uses facial detection to detect people
   """
-  args = {'cascade': '/Users/anna/Desktop/deep-learning/haarcascade_frontalface_default.xml', 'encodings': '/Users/anna/Desktop/deep-learning/encodings.pickle'}
+  args = {'cascade': '/Users/anna/Desktop/GenOne/haarcascade_frontalface_default.xml', 'encodings': '/Users/anna/GenOne/deep-learning/encodings.pickle'}
 
   # load the known faces & embeddings along with OpenCV's Haarcascade for face detection
   data = pickle.loads(open(args["encodings"], "rb").read())
   detector = cv2.CascadeClassifier(args["cascade"])
 
-  while True:
-    frame = VideoStream(usePiCamera=True).read()
-    roi_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    roi_color = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    faces = detector.detectMultiScale(roi_gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30), flags=cv2.CASCADE_SCALE_IMAGE)
+  frame = VideoStream(usePiCamera=True).read()
+  frame = imutils.resize(frame, width=500)
+  roi_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+  roi_color = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+  faces = detector.detectMultiScale(roi_gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30), flags=cv2.CASCADE_SCALE_IMAGE)
 
-    # box coordinates in (x, y, w, h), need (top, right, bottom, left) order --> reorder
-    boxes = [(y, x + w, y + h, x) for (x, y, w, h) in faces]
-    encodings = face_recognition.face_encodings(roi_color, boxes) # compute facial embeddings for each face bounding box
+  # box coordinates in (x, y, w, h), need (top, right, bottom, left) order --> reorder
+  boxes = [(y, x + w, y + h, x) for (x, y, w, h) in faces]
+  encodings = face_recognition.face_encodings(roi_color, boxes) # compute facial embeddings for each face bounding box
 
-    for face in encodings:
-      matches = face_recognition.compare_faces(data["encodings"], face) # attempt to match each face in the input image to encodings
-      name = "Unknown"
+  name_COPY = "Unknown"
+  for face in encodings:
+    matches = face_recognition.compare_faces(data["encodings"], face) # attempt to match each face in the input image to encodings
 
-      if True in matches:
-        matchedIdxs = [i for (i, b) in enumerate(matches) if b]
-        counts = {}
-        for i in matchedIdxs:
-          name = data["names"][i]
-          counts[name] = counts.get(name, 0) + 1
-        name = max(counts, key=counts.get) # determine recognized face w/ most votes
-        name_COPY = name
+    if True in matches:
+      matchedIdxs = [i for (i, b) in enumerate(matches) if b]
+      counts = {}
+      for i in matchedIdxs:
+        name = data["names"][i]
+        counts[name] = counts.get(name, 0) + 1
+      name = max(counts, key=counts.get) # determine recognized face w/ most votes
+      name_COPY = name
 
-      for ((top, right, bottom, left), name) in zip(boxes, name): # loop over the recognized faces
-        if abs(right - left) >= 200:
-          is_leaving = True
-        else:
-          is_leaving = False
+    for ((top, right, bottom, left), name) in zip(boxes, name): # loop over the recognized faces
+      if abs(right - left) >= 200:
+        is_leaving = True
+      else:
+        is_leaving = False
 
-    if name_COPY != "Unknown":
-      return (name_COPY, is_leaving)
+  if name_COPY != "Unknown":
+    return (name_COPY, is_leaving)
+  else:
+    return None
 
 
 ### Throughout day, log updates; at end of day, functions detect last employee leaving and final lock
-def build_table():
-  entry_log = log_main()
+def build_table(entry_log):
+  now = datetime.now()
   log_keys = list(entry_log.keys())
   log_vals = list(entry_log.values())
 
   t = PrettyTable(['Employee', 'Status'])
   for i in range(len(entry_log)):
     t.add_row([log_keys[i],log_vals[i]])
-  return t
+  t = t.get_string()
+
+  dt = now.strftime("%m/%d/%Y %H:%M:%S")
+  f = open("log.py", 'w')
+  f.truncate(0)
+  f.write("Latest Update: " + str(dt) + "\n" + t)
+  f.close()
 
 def lights():
   """
   Detects whether or not last person has turned off the lights before leaving
   Returns True if lights are off
   """
+  frame = VideoStream(usePiCamera=True).read()
+  frame = imutils.resize(frame, width=500)
+
   camera.capture(rawCapture, format="rgb")
-  iamge = rawCapture.array
+  image = rawCapture.array
+  
   black_thresh = 75 # 0 = pitch black, 255 = bright white
   if image < black_thresh:
     return True
@@ -251,23 +253,29 @@ def lights():
 
 
 
+"""
+MAIN CODE! RUNNING FUNCTIONS! YAY!
+"""
 
-"""
-MAIN CODE! RUNNING FUNCTIONS!
-"""
+
 
 # turn on RPI, start server
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BOARD)
-GPIO.setup(16, GPIO.IN)
-GPIO.setup(12, GPIO.IN)
+wiringpi.wiringPiSetupGpio()
+wiringpi.pinMode(18, wiringpi.GPIO.PWM_OUTPUT)
+wiringpi.pinMode(16, wiringpi.GPIO.INPUT) 
+wiringpi.pinMode(25, wiringpi.GPIO.INPUT)
+wiringpi.pwmSetMode(wiringpi.GPIO.PWM_MODE_MS) # set the PWM mode to milliseconds stype
+wiringpi.pwmSetClock(192) # divide down clock
+wiringpi.pwmSetRange(150)
+delay_period = 0.01
 
 
 # initialize main code
 faces_train()
-cam_initialize()
+VideoStream(usePiCamera=True).start()
+time.sleep(2.0)
 log_main = default_log()
-build_table()
+build_table(log_main)
 
 
 # run functions
@@ -288,7 +296,7 @@ while(True):
       if not lock_state():
         unlock()
     log_main[name] = "in office"
-    build_table()
+    build_table(log_main)
 
   # check entry log
   if log_main != default_log():
@@ -296,10 +304,10 @@ while(True):
       time.sleep(30)
       lock()
       log_main = default_log()
-      build_table()
+      build_table(log_main)
     if not lights(): # lights on
       if office_camera() != None: # detects face
         if office_camera()[1]:
           unlock()
           log_main[office_camera()[0]] = "out of office"
-          build_table()
+          build_table(log_main)
