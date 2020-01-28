@@ -1,0 +1,12 @@
+Latest Update: 01/28/2020 15:12:51
++--------------------+---------------+
+|      Employee      |     Status    |
++--------------------+---------------+
+|    anna meurer     | out of office |
+|    jimmy gomez     | out of office |
+| david orozco cosio | out of office |
+|   emily scherer    | out of office |
+|    isaac fenta     | out of office |
+|  colton donnelly   | out of office |
+|  chrisopher davis  | out of office |
++--------------------+---------------+
