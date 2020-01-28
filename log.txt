@@ -1,4 +1,4 @@
-Latest Update: 01/28/2020 10:51:52
+Latest Update: 01/28/2020 15:56:03
 +--------------------+---------------+
 |      Employee      |     Status    |
 +--------------------+---------------+
@@ -8,5 +8,5 @@ Latest Update: 01/28/2020 10:51:52
 |    jimmy gomez     | out of office |
 |  colton donnelly   | out of office |
 | david orozco cosio | out of office |
-|    anna meurer     | out of office |
+|    anna meurer     |   in office   |
 +--------------------+---------------+

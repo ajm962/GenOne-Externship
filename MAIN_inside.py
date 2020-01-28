@@ -1,5 +1,6 @@
 import os 
 import face_recognition
+import dropbox
 import cv2 
 import time
 import pickle 
@@ -14,6 +15,8 @@ from PIL import Image
 import RPi.GPIO as GPIO
 import threading
 import concurrent.futures
+import dropbox
+from dropbox.files import WriteMode
 
 # turn on RPI, start server
 camera = VideoStream(usePiCamera=True).start()
@@ -200,6 +203,8 @@ def build_table(entry_log):
   now = datetime.now()
   log_keys = list(entry_log.keys())
   log_vals = list(entry_log.values())
+  dbx = dropbox.Dropbox("AzJy55j2JKAAAAAAAAAADCwNzm7vrf9vsWrfaHn3vG2yrzER6Md3AmIUNLPcTuX3")
+
 
   t = PrettyTable(['Employee', 'Status'])
   for i in range(len(entry_log)):
@@ -207,10 +212,14 @@ def build_table(entry_log):
   t = t.get_string()
 
   dt = now.strftime("%m/%d/%Y %H:%M:%S")
-  f = open("log.py", 'w')
+  f = open("log.txt", 'w')
   f.truncate(0)
   f.write("Latest Update: " + str(dt) + "\n" + t)
   f.close()
+  
+  with open("/home/pi/Desktop/GenOne-Externship/log.txt", "rb") as f2:
+    dbx.files_upload(f2.read(), '/log.txt', mute = True, mode = WriteMode('overwrite'))
+  f2.close()
 
 def lights():
   """
@@ -282,8 +291,6 @@ while(True):
    # check outside camera
     if serial_flag == False: # if camera detects a recognized face
         names = entering_names
-        print("OUTSIDE FACE")
-        print(names)
         if door == False:
             if lock == False:
                 unlock()
@@ -291,6 +298,7 @@ while(True):
             name = name.replace("\n", "")
             log_main[name] = "in office"
         build_table(log_main)
+        print("CHECK DROP")
         serial_flag = True
 
   # check entry log
@@ -302,7 +310,6 @@ while(True):
             build_table(log_main)
         else: # lights on
             if inside is not None: # if detects face
-                print("INSIDE FACE")
                 if lock == False:
                     unlock()
                 for name in inside:
