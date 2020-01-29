@@ -104,8 +104,15 @@ MAIN! CODE!
 """
 
 #faces_train()
+<<<<<<< HEAD
 print("ready!")
+=======
+>>>>>>> 1a57377ea33bdef292a70de3db0bd20ea7e32ad9
 while(True):
   names = hall_camera()
   if names is not None:
       serial_send(names) # send message to other RPI
+<<<<<<< HEAD
+=======
+
+>>>>>>> 1a57377ea33bdef292a70de3db0bd20ea7e32ad9

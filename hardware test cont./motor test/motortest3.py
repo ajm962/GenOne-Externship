@@ -19,16 +19,16 @@ wiringpi.pwmSetRange(150)
 delay_period = 0.0004
  
 def update():
-    if (wiringpi.digitalRead(16) == 0):
+    if (wiringpi.digitalRead(16) == 0): # counterclockwise
         for pulse in range(0, 300, 1):
             wiringpi.pwmWrite(18, pulse)
             time.sleep(delay_period)
 
-    if (wiringpi.digitalRead(25) == 0):
+   if (wiringpi.digitalRead(25) == 0): # clockwise
         for pulse in range(300, 0, -1):
             wiringpi.pwmWrite(18, pulse)
             time.sleep(delay_period)
 
-while True :
-    update()
+# while True:
+   # update()
     
