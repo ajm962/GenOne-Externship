@@ -203,8 +203,7 @@ def build_table(entry_log):
   now = datetime.now()
   log_keys = list(entry_log.keys())
   log_vals = list(entry_log.values())
-  dbx = dropbox.Dropbox("AzJy55j2JKAAAAAAAAAADCwNzm7vrf9vsWrfaHn3vG2yrzER6Md3AmIUNLPcTuX3")
-
+  dbx = dropbox.Dropbox("AzJy55j2JKAAAAAAAAAAEblAFF2UcphRfzAoGeSrJxqToDlipWKHrVnOSN4hz9CA")
 
   t = PrettyTable(['Employee', 'Status'])
   for i in range(len(entry_log)):
@@ -296,9 +295,9 @@ while(True):
                 unlock()
         for name in names:
             name = name.replace("\n", "")
-            log_main[name] = "in office"
+            if name in log_main.keys():
+                log_main[name] = "in office"
         build_table(log_main)
-        print("CHECK DROP")
         serial_flag = True
 
   # check entry log
@@ -314,6 +313,5 @@ while(True):
                     unlock()
                 for name in inside:
                     log_main[name] = "out of office"
-                    print(name)
                 build_table(log_main)
             
